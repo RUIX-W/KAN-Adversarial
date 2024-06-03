@@ -51,7 +51,7 @@ def requires_grad(model: nn.Module, requires_grad: bool) -> None:
         param.requires_grad_(requires_grad)
 
 
-def trainables(model: nn.Module) -> Generator[nn.Parameter]:
+def trainables(model: nn.Module) -> Generator[nn.Parameter, None, None]:
     """Generate all trainable parameters of the model"""
     for param in model.parameters():
         if param.requires_grad:

@@ -7,5 +7,6 @@ from .densekanet import densekalnet161, densekalnet169, densekalnet201
 from .densekanet import tiny_densekanet, tiny_densekalnet, tiny_densekacnet, tiny_fast_densekanet, tiny_densekagnet
 from .ukanet import ukanet_18, ukalnet_18, fast_ukanet_18, ukacnet_18, ukagnet_18
 from .vggkan import fast_vggkan, vggkan, vggkaln, vggkacn, vggkagn
+from .lekanet import LeKANet, Fast_LeKANet, LeKALNet, LeKACNet, LeKAGNet
 
 from .baselines import LeNet
