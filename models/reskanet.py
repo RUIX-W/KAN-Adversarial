@@ -7,7 +7,7 @@ from torch import Tensor, flatten
 from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
 from kan_convs import MoEKALNConv2DLayer
 from kans import KAN, KALN, KACN, KAGN, FastKAN
-from utils import L1
+from utils.regularization import L1
 
 
 def kan_conv3x3(in_planes: int, out_planes: int, spline_order: int = 3, groups: int = 1, stride: int = 1,
@@ -688,7 +688,7 @@ class ResKANet(nn.Module):
             num_classes: int = 1000,
             groups: int = 1,
             width_per_group: int = 64,
-            width_scale: int = 1,
+            width_scale: int = 2,
             replace_stride_with_dilation: Optional[List[bool]] = None,
             dropout_linear: float = 0.25,
             hidden_layer_dim: int = None,

@@ -8,7 +8,14 @@ from tensorboardX import SummaryWriter
 import pandas as pd
 
 from typing import Generator, Any
+from argparse import Namespace, ArgumentParser
 import time
+import os
+
+from datasets import get_dataset
+from architectures import (
+    get_architecture, get_kan_architecture
+)
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -26,6 +33,62 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+
+def prologue(args: Namespace):
+    args.log_dir = os.path.join(args.log_dir, 'train')
+    if not os.path.exists(args.log_dir):
+        os.makedirs(args.log_dir)
+    
+    args.model_dir = model_filepath(args.model_dir, args)
+    if not os.path.exists(args.model_dir):
+        os.makedirs(args.model_dir)
+    
+    writer = SummaryWriter(args.log_dir)
+
+    trainset = get_dataset(args.dataset, 'train', args.data_dir, not args.normalize)
+    testset = get_dataset(args.dataset, 'test', args.data_dir, not args.normalize)
+    trainloader = DataLoader(trainset, args.batch, shuffle=True, num_workers=args.workers)
+    testloader = DataLoader(testset, args.test_batch, shuffle=False, num_workers=args.workers)
+
+    if args.kan:
+        model = get_kan_architecture(args.arch, args.dataset, args.normalize,
+                                     args.spline_order, args.grid_size,
+                                     args.l1_decay)
+    else:
+        model = get_architecture(args.arch, args.dataset, args.normalize)
+
+    if args.optimizer == 'SGD':
+        optimizer = optim.SGD(model.parameters(), args.lr, args.momentum, 
+                              weight_decay=args.weight_decay, nesterov=args.nesterov)
+    elif args.optimizer == 'Adam':
+        optimizer = optim.Adam(model.parameters(), args.lr, args.betas, args.eps, 
+                               weight_decay=args.weight_decay)
+    else:
+        raise NotImplementedError(f'{args.optimizer} optimizer not supported.')
+    
+    if args.scheduler == 'step':
+        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, args.lr_step_size, args.lr_gamma)
+    elif args.scheduler == 'cosine':
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs, args.lr_min)
+    else:
+        raise NotImplementedError(f'{args.scheduler} scheduler is not supported.')
+    
+    starting_epoch = 0
+    if args.resume_path:
+        ckpt = torch.load(args.resume_path)
+        model.load_state_dict(ckpt['state_dict'])
+        optimizer.load_state_dict(ckpt['optimizer'])
+        lr_scheduler.load_state_dict(ckpt['scheduler'])
+
+        starting_epoch = ckpt['epoch']
+    
+    device = torch.device('cuda') if (args.use_gpu) and torch.cuda.is_available() \
+        else torch.device('cpu')
+    criterion = nn.CrossEntropyLoss().to(device)
+
+    return trainloader, testloader, writer, model, optimizer, lr_scheduler, starting_epoch,\
+          device, criterion
 
 
 def topk_acc(output: torch.Tensor, target: torch.Tensor, ks: tuple[int] = (1,)) -> torch.Tensor:
@@ -63,7 +126,7 @@ def count_params(model: nn.Module) -> int:
         num += param.numel()
     return num
 
-def save_model(model: nn.Module, model_name: str, normalize: bool,
+def save_model(model: nn.Module, model_name: str, normalize: bool, kan: bool,
                optimizer: optim.Optimizer, lr_scheduler: _LRScheduler, 
                epoch: int, path: str) -> None:
     info = {
@@ -72,10 +135,50 @@ def save_model(model: nn.Module, model_name: str, normalize: bool,
         'epoch': epoch,
         'state_dict': model.state_dict(),
         'optimizer': optimizer.state_dict(),
-        'scheduler': lr_scheduler.state_dict()
+        'scheduler': lr_scheduler.state_dict(),
+        'time': time.strftime("%Y-%m-%d %H:%M:%S", \
+                              time.gmtime(time.time()))
     }
+    if kan:
+        info['spline_order'] = model.spline_order
+        info['grid_size'] = model.grid_size
+        info['l1_decay'] = model.l1_decay
+    
+    path = os.path.join(path, f'checkpoint@{epoch}.pth')
     print(f'Saving model at epoch {epoch} to {path} ...')
     torch.save(info, path)
+
+def construct_fpath(base_dir: str, keys: list[str], args: Namespace) -> str:
+    s = base_dir
+    for key in keys:
+        value = getattr(args, key, None)
+        if isinstance(value, bool):
+            name = ('' if value else 'non-') + value
+        else:
+            name = f'{key}={value}'
+        s = os.path.join(s, name)
+    return s
+
+
+def model_filepath(base_dir: str, args: Namespace) -> str:
+    keys = ['dataset', 'arch', 'normliaze', 'kan']
+    if args.kan:
+        keys.extend(['spline_order', 'grid_size', 'l1_decay'])
+    
+    keys.extend(['epochs', 'lr', 'weight-_decay', 'optimizer'])
+    if args.optimizer == 'SGD':
+        keys.append('momentum')
+    else:
+        keys.extend(['betas', 'adam_eps'])
+    
+    keys.append('scheduler')
+    if args.scheduler == 'step':
+        keys.extend(['lr_step_size', 'lr_gamma'])
+    else:
+        keys.append(['lr_min'])
+    
+    return construct_fpath(base_dir, keys, args)
+
 
 
 def train_epoch(loader: DataLoader, model: nn.Module, criterion, optimizer: optim.Optimizer, epoch: int, 
@@ -134,17 +237,18 @@ def train_epoch(loader: DataLoader, model: nn.Module, criterion, optimizer: opti
     return (losses.avg, top1.avg)
 
 
-def train(loader: DataLoader, model: nn.Module, criterion, optimizer: optim.Optimizer, 
-                lr_scheduler: _LRScheduler, epochs: int, device: torch.device, 
-                writer: SummaryWriter = None, print_freq: int = 10, test_freq: int = 1, 
-                test_print_freq: int = 20, target_acc: float = None, 
-                save_params: dict[str, Any] = None) -> pd.DataFrame:
+def train(trainloader: DataLoader, testloader: DataLoader, model: nn.Module, criterion, 
+          optimizer: optim.Optimizer, lr_scheduler: _LRScheduler, epochs: int,
+          device: torch.device, writer: SummaryWriter = None, print_freq: int = 10, 
+          test_freq: int = 1, test_print_freq: int = 20, target_acc: float = None, 
+          starting_epoch: int = 0, save_params: dict[str, Any] = None) -> pd.DataFrame:
+    
     train_losses, train_accs = [], []
     test_losses, test_accs = [], []
 
     best = 0
-    for epoch in range(epochs):
-        loss, acc = train_epoch(loader, model, criterion, optimizer, epoch, device, 
+    for epoch in range(starting_epoch, epochs):
+        loss, acc = train_epoch(trainloader, model, criterion, optimizer, epoch, device, 
                                 writer, print_freq)
         train_losses.append(loss)
         train_accs.append(acc)
@@ -153,7 +257,7 @@ def train(loader: DataLoader, model: nn.Module, criterion, optimizer: optim.Opti
         writer.add_scalar('learning-rate', lr_scheduler.get_last_lr())
 
         if epoch % test_freq == 0 or epoch == epochs - 1:
-            loss, acc = test(loader, model, criterion, epoch, device, writer, 
+            loss, acc = test(testloader, model, criterion, epoch, device, writer, 
                              test_print_freq)
             test_losses.append(loss)
             test_accs.append(acc)

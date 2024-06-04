@@ -7,7 +7,7 @@ from kan_convs import (
     KANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer, KALNConv2DLayer,
     FastKANConv2DLayer
 )
-from utils import L1
+from utils.regularization import L1
 
 from typing import Optional, Callable, List
 
@@ -118,6 +118,9 @@ class LeKANet(nn.Module):
                  l1_decay: float = 5e-5):
         super(LeKANet, self).__init__()
         self.num_classes = num_classes
+        self.spline_order = spline_order
+        self.grid_size = grid_size
+        self.l1_decay = l1_decay
 
         self.conv1 = kan_conv5x5(1, 20, spline_order=spline_order,
                                  grid_size=grid_size, l1_decay=l1_decay)
@@ -139,6 +142,8 @@ class Fast_LeKANet(nn.Module):
     def __init__(self, num_classes: int = 10, grid_size: int = 5, l1_decay: float = 5e-5):
         super(Fast_LeKANet, self).__init__()
         self.num_classes = num_classes
+        self.grid_size = grid_size
+        self.l1_decay = l1_decay
 
         self.conv1 = fast_kan_conv5x5(1, 20, grid_size=grid_size)
         self.conv2 = fast_kan_conv5x5(20, 50, grid_size=grid_size)
@@ -158,6 +163,8 @@ class LeKALNet(nn.Module):
     def __init__(self, num_classes: int = 10, degree: int = 3, l1_decay: float = 5e-5):
         super(LeKALNet, self).__init__()
         self.num_classes = num_classes
+        self.degree = degree
+        self.l1_decay = l1_decay
 
         self.conv1 = kaln_conv5x5(1, 20, degree=degree, l1_decay=l1_decay)
         self.conv2 = kaln_conv5x5(20, 50, degree=degree, l1_decay=l1_decay)
@@ -177,6 +184,8 @@ class LeKAGNet(nn.Module):
     def __init__(self, num_classes: int = 10, degree: int = 3, l1_decay: float = 5e-5):
         super(LeKAGNet, self).__init__()
         self.num_classes = num_classes
+        self.degree = degree
+        self.l1_decay = l1_decay
 
         self.conv1 = kagn_conv5x5(1, 20, degree=degree, l1_decay=l1_decay)
         self.conv2 = kagn_conv5x5(20, 50, degree=degree, l1_decay=l1_decay)
@@ -196,6 +205,8 @@ class LeKACNet(nn.Module):
     def __init__(self, num_classes: int = 10, degree: int = 3, l1_decay: float = 5e-5):
         super(LeKACNet, self).__init__()
         self.num_classes = num_classes
+        self.degree = degree
+        self.l1_decay = l1_decay
 
         self.conv1 = kacn_conv5x5(1, 20, degree=degree, l1_decay=l1_decay)
         self.conv2 = kacn_conv5x5(20, 50, degree=degree, l1_decay=l1_decay)

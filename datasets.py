@@ -12,7 +12,7 @@ from torch.utils.data import Dataset
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # list of all datasets
-DATASETS = ["imagenet", "cifar10", "mnist"]
+DATASETS = ["cifar10", "mnist"]
 
 
 class MNIST_IND(datasets.MNIST):
@@ -24,9 +24,7 @@ class MNIST_IND(datasets.MNIST):
 def get_dataset(dataset: str, split: str, root: str, 
                 normalize: bool = False) -> Dataset:
     """Return the dataset as a PyTorch Dataset object"""
-    if dataset == "imagenet":
-        return _imagenet(split, root, normalize)
-    elif dataset == "cifar10":
+    if dataset == "cifar10":
         return _cifar10(split, root, normalize)
     elif dataset == "mnist":
         return _mnist(split, root)
@@ -34,9 +32,7 @@ def get_dataset(dataset: str, split: str, root: str,
 
 def get_num_classes(dataset: str):
     """Return the number of classes in the dataset. """
-    if dataset == "imagenet":
-        return 1000
-    elif dataset == "cifar10":
+    if dataset == "cifar10":
         return 10
     elif dataset == "mnist":
         return 10
@@ -44,16 +40,14 @@ def get_num_classes(dataset: str):
 
 def get_normalize_layer(dataset: str) -> torch.nn.Module:
     """Return the dataset's normalization layer"""
-    if dataset == "imagenet":
-        return NormalizeLayer(_IMAGENET_MEAN, _IMAGENET_STDDEV)
-    elif dataset == "cifar10":
+    if dataset == "cifar10":
         return NormalizeLayer(_CIFAR10_MEAN, _CIFAR10_STDDEV)
     elif dataset == "mnist":
         return torch.nn.Identity()
 
 
-_IMAGENET_MEAN = [0.485, 0.456, 0.406]
-_IMAGENET_STDDEV = [0.229, 0.224, 0.225]
+# _IMAGENET_MEAN = [0.485, 0.456, 0.406]
+# _IMAGENET_STDDEV = [0.229, 0.224, 0.225]
 
 _CIFAR10_MEAN = [0.4914, 0.4822, 0.4465]
 _CIFAR10_STDDEV = [0.2023, 0.1994, 0.2010]
@@ -83,28 +77,28 @@ def _cifar10(split: str, root: str, normalize: bool) -> Dataset:
                             transform=transforms.Compose(transforms_lst))
 
 
-def _imagenet(split: str, root: str, normalize: bool) -> Dataset:
-    dir = root
-    if split == "train":
-        subdir = os.path.join(dir, "train")
-        transforms_lst = [
-            transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor()
-        ]
-    elif split == "test":
-        subdir = os.path.join(dir, "val")
-        transforms_lst = [
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor()
-        ]
+# def _imagenet(split: str, root: str, normalize: bool) -> Dataset:
+#     dir = root
+#     if split == "train":
+#         subdir = os.path.join(dir, "train")
+#         transforms_lst = [
+#             transforms.RandomResizedCrop(224),
+#             transforms.RandomHorizontalFlip(),
+#             transforms.ToTensor()
+#         ]
+#     elif split == "test":
+#         subdir = os.path.join(dir, "val")
+#         transforms_lst = [
+#             transforms.Resize(256),
+#             transforms.CenterCrop(224),
+#             transforms.ToTensor()
+#         ]
     
-    if normalize:
-        transforms_lst.append(transforms.Normalize(_IMAGENET_MEAN, 
-                                                   _IMAGENET_STDDEV))
+#     if normalize:
+#         transforms_lst.append(transforms.Normalize(_IMAGENET_MEAN, 
+#                                                    _IMAGENET_STDDEV))
     
-    return datasets.ImageFolder(subdir, transforms.Compose(transforms_lst))
+#     return datasets.ImageFolder(subdir, transforms.Compose(transforms_lst))
 
 
 class NormalizeLayer(torch.nn.Module):
