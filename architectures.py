@@ -67,6 +67,11 @@ def get_kan_architecture(model_name: str, dataset: str, normalize: bool,
     elif model_name == 'resnet18':
        model = reskanet_18x32p(3, 10, spline_order=spline_order,
                                grid_size=grid_size, l1_decay=l1_decay)
+       
+       # store these info in model for saving concerns
+       model.spline_order = spline_order
+       model.grid_size = grid_size
+       model.l1_decay = l1_decay
     else:
        raise NotImplementedError(f'{model_name} model is not supported.')
     

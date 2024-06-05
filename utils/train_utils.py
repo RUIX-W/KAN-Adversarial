@@ -66,7 +66,7 @@ def prologue(args: Namespace):
         optimizer = optim.SGD(model.parameters(), args.lr, args.momentum, 
                               weight_decay=args.weight_decay, nesterov=args.nesterov)
     elif args.optimizer == 'Adam':
-        optimizer = optim.Adam(model.parameters(), args.lr, args.betas, args.eps, 
+        optimizer = optim.Adam(model.parameters(), args.lr, args.betas, args.adam_eps, 
                                weight_decay=args.weight_decay)
     else:
         raise NotImplementedError(f'{args.optimizer} optimizer not supported.')
