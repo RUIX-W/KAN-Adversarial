@@ -13,15 +13,14 @@ import torch.backends.cudnn as cudnn
 from datasets import get_normalize_layer
 from models import LeNet, LeKANet, reskanet_18x32p
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 # lenet - the classic LeNet for MNIST
 # resnet18 - the classic ResNet-18, sized for ImageNet
 # resnet50 - the classic ResNet-50, sized for ImageNet
 # resnet101 - the classic ResNet-101, sized for ImageNet
 ARCHITECTURES = ["lenet", "resnet18", "resnet50", "resnet101"]
 
-def get_architecture(model_name: str, dataset: str, normalize: bool) -> nn.Module:
+def get_architecture(model_name: str, dataset: str, normalize: bool,
+                     device: torch.device = torch.device('cuda')) -> nn.Module:
     """ Return a neural network (with random weights)
 
     :param model_name: the architecture - should be in the ARCHITECTURES list above
@@ -53,7 +52,7 @@ def get_architecture(model_name: str, dataset: str, normalize: bool) -> nn.Modul
 
 def get_kan_architecture(model_name: str, dataset: str, normalize: bool,
                          spline_order: int = 3, grid_size: int = 5,
-                         l1_decay: float = 5e-5) -> nn.Module:
+                         l1_decay: float = 5e-5, device: torch.device = torch.device('cuda')) -> nn.Module:
     """ Return a neural network (with random weights)
 
     :param model_name: the architecture - should be in the ARCHITECTURES list above
@@ -77,13 +76,13 @@ def get_kan_architecture(model_name: str, dataset: str, normalize: bool,
     return model.to(device)
 
 
-def load_ckpt(ckpt: dict, dataset: str) -> nn.Module:
+def load_ckpt(ckpt: dict, dataset: str, device: torch.device = torch.device('cuda')) -> nn.Module:
    if ckpt['kan']:
-      model = get_kan_architecture(ckpt['model_name'], dataset,
-                                   ckpt['normalize'], ckpt['spline_order'],
-                                   ckpt['grid_size'], ckpt['l1_decay'])
+      model = get_kan_architecture(ckpt['model_name'], dataset, ckpt['normalize'], 
+                                   ckpt['spline_order'], ckpt['grid_size'], ckpt['l1_decay'],
+                                   device)
    else:
       model = get_architecture(ckpt['name'], dataset,
-                              ckpt['normalize'])
+                              ckpt['normalize'], device)
    model.load_state_dict(ckpt['state_dict'])
    return model

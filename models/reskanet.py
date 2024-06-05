@@ -7,7 +7,7 @@ from torch import Tensor, flatten
 from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
 from kan_convs import MoEKALNConv2DLayer
 from kans import KAN, KALN, KACN, KAGN, FastKAN
-from utils.regularization import L1
+from regularization import L1
 
 
 def kan_conv3x3(in_planes: int, out_planes: int, spline_order: int = 3, groups: int = 1, stride: int = 1,

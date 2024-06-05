@@ -23,6 +23,8 @@ def get_parser() -> ArgumentParser:
     # Data configurations
     parser.add_argument('--data-dir', type=str, default='~/DATA/',
                         help='Path to the dataset directory')
+    parser.add_argument('--workers', type=int, default=0,
+                        help='Number of worker nodes when loading data.')
     
 
     #############################################
@@ -44,7 +46,8 @@ def get_parser() -> ArgumentParser:
     # Training configurations
     parser.add_argument('--epochs', type=int, default=90, help='Training epochs.')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate.')
-    parser.add_argument('--weight-decay', type=float, default=0.0)
+    parser.add_argument('--weight-decay', type=float, default=0.0, help='Weight decay.')
+    parser.add_argument('--nesterov', action='store_true', help='Whether to use nesterov gradient.')
     parser.add_argument('--optimizer', type=str, choices=['SGD', 'Adam'], default='SGD',
                         help='Optimizer choice during training.')
     parser.add_argument('--scheduler', type=str, choices=['step', 'cosine'], default='cosine',
@@ -114,8 +117,10 @@ if __name__ == '__main__':
         'kan': args.kan,
         'path': args.model_dir
     }
-    train_df = train(trainloader, testloader, model, criterion, optimizer, lr_scheduler,
-                     args.epochs, device, writer, args.print_freq, args.test_freq,
-                     args.test_print_freq, args.target_acc, starting_epoch, save_params)
+    train_df, epoch, reached = train(trainloader, testloader, model, criterion, optimizer, lr_scheduler,
+                                     args.epochs, device, writer, args.print_freq, args.test_freq,
+                                     args.test_print_freq, args.target_acc, starting_epoch, save_params)
+    print('Finished at epoch {}, {} target accuracy [{:.2f}%].'
+          ''.format(epoch, 'reached' if reached else 'did not reach', args.target_acc * 100))
     
     train_df.to_csv(os.path.join(args.log_dir, 'train_stats.csv'), index=False)

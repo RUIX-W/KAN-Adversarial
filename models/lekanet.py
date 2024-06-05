@@ -7,7 +7,7 @@ from kan_convs import (
     KANConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer, KALNConv2DLayer,
     FastKANConv2DLayer
 )
-from utils.regularization import L1
+from regularization import L1
 
 from typing import Optional, Callable, List
 
@@ -127,7 +127,7 @@ class LeKANet(nn.Module):
         self.conv2 = kan_conv5x5(20, 50, spline_order=spline_order,
                                  grid_size=grid_size, l1_decay=l1_decay)
         
-        self.fc = mlp_kan([4 * 4 * 50, 500, num_classes], spline_order=spline_order,
+        self.fc = mlp_kan([5 * 5 * 50, 500, num_classes], spline_order=spline_order,
                           grid_size=grid_size, l1_decay=l1_decay)
 
     def forward(self, x):
@@ -135,6 +135,7 @@ class LeKANet(nn.Module):
         x = F.max_pool2d(x, 2, 2)
         x = self.conv2(x)
         x = F.max_pool2d(x, 2, 2)
+        x = x.flatten(1)
         x = self.fc(x)
         return x
 

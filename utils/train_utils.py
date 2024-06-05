@@ -41,6 +41,7 @@ def prologue(args: Namespace):
         os.makedirs(args.log_dir)
     
     args.model_dir = model_filepath(args.model_dir, args)
+    print(f'Model directory is {args.model_dir}.')
     if not os.path.exists(args.model_dir):
         os.makedirs(args.model_dir)
     
@@ -51,12 +52,15 @@ def prologue(args: Namespace):
     trainloader = DataLoader(trainset, args.batch, shuffle=True, num_workers=args.workers)
     testloader = DataLoader(testset, args.test_batch, shuffle=False, num_workers=args.workers)
 
+    device = torch.device('cuda') if (args.use_gpu) and torch.cuda.is_available() \
+        else torch.device('cpu')
+
     if args.kan:
         model = get_kan_architecture(args.arch, args.dataset, args.normalize,
                                      args.spline_order, args.grid_size,
-                                     args.l1_decay)
+                                     args.l1_decay, device)
     else:
-        model = get_architecture(args.arch, args.dataset, args.normalize)
+        model = get_architecture(args.arch, args.dataset, args.normalize, device)
 
     if args.optimizer == 'SGD':
         optimizer = optim.SGD(model.parameters(), args.lr, args.momentum, 
@@ -83,8 +87,6 @@ def prologue(args: Namespace):
 
         starting_epoch = ckpt['epoch']
     
-    device = torch.device('cuda') if (args.use_gpu) and torch.cuda.is_available() \
-        else torch.device('cpu')
     criterion = nn.CrossEntropyLoss().to(device)
 
     return trainloader, testloader, writer, model, optimizer, lr_scheduler, starting_epoch,\
@@ -153,7 +155,7 @@ def construct_fpath(base_dir: str, keys: list[str], args: Namespace) -> str:
     for key in keys:
         value = getattr(args, key, None)
         if isinstance(value, bool):
-            name = ('' if value else 'non-') + value
+            name = ('' if value else 'non-') + key
         else:
             name = f'{key}={value}'
         s = os.path.join(s, name)
@@ -161,7 +163,7 @@ def construct_fpath(base_dir: str, keys: list[str], args: Namespace) -> str:
 
 
 def model_filepath(base_dir: str, args: Namespace) -> str:
-    keys = ['dataset', 'arch', 'normliaze', 'kan']
+    keys = ['dataset', 'arch', 'normalize', 'kan']
     if args.kan:
         keys.extend(['spline_order', 'grid_size', 'l1_decay'])
     
@@ -175,7 +177,7 @@ def model_filepath(base_dir: str, args: Namespace) -> str:
     if args.scheduler == 'step':
         keys.extend(['lr_step_size', 'lr_gamma'])
     else:
-        keys.append(['lr_min'])
+        keys.append('lr_min')
     
     return construct_fpath(base_dir, keys, args)
 
@@ -227,7 +229,7 @@ def train_epoch(loader: DataLoader, model: nn.Module, criterion, optimizer: opti
                   'Acc@1 {top1.avg:.3f}\t'
                   'Acc@5 {top5.avg:.3f}'.format(
                 epoch, i, len(loader) - 1, batch_time=batch_time,
-                data_time=data_time, loss=losses, top1=top1, top5=top5))
+                data_time=data_time, loss=losses, top1=top1, top5=top5))        
 
     writer.add_scalar('loss/train', losses.avg, epoch)
     writer.add_scalar('batch_time', batch_time.avg, epoch)
@@ -240,13 +242,13 @@ def train_epoch(loader: DataLoader, model: nn.Module, criterion, optimizer: opti
 def train(trainloader: DataLoader, testloader: DataLoader, model: nn.Module, criterion, 
           optimizer: optim.Optimizer, lr_scheduler: _LRScheduler, epochs: int,
           device: torch.device, writer: SummaryWriter = None, print_freq: int = 10, 
-          test_freq: int = 1, test_print_freq: int = 20, target_acc: float = None, 
+          test_freq: int = 1, test_print_freq: int = 20, target_acc: float = 1.0, 
           starting_epoch: int = 0, save_params: dict[str, Any] = None) -> pd.DataFrame:
     
     train_losses, train_accs = [], []
     test_losses, test_accs = [], []
 
-    best = 0
+    best, reached = 1.0, False
     for epoch in range(starting_epoch, epochs):
         loss, acc = train_epoch(trainloader, model, criterion, optimizer, epoch, device, 
                                 writer, print_freq)
@@ -262,18 +264,22 @@ def train(trainloader: DataLoader, testloader: DataLoader, model: nn.Module, cri
             test_losses.append(loss)
             test_accs.append(acc)
 
-            if acc > best:
+            dist = target_acc - acc / 100
+            if dist < best:
                 # best test acc so far
                 save_model(model, **save_params, optimizer=optimizer,
                            lr_scheduler=lr_scheduler, epoch=epoch)
-                best = acc
+                best = dist
 
-            if abs(acc - target_acc) <= 1e-3:
-                # reached vicinity of target accuracy
+            if dist <= 1e-3:
+                # close enough to or surpassed target accuracy
+                reached = True
                 break        
         else:
             test_losses.append(test_losses[-1])
             test_accs.append(test_accs[-1])
+        
+        print()
 
 
     df = pd.DataFrame({
@@ -282,7 +288,7 @@ def train(trainloader: DataLoader, testloader: DataLoader, model: nn.Module, cri
         "test loss": test_losses,
         "test acc": test_accs,
     })
-    return df, epoch
+    return df, epoch, reached
 
 
 def test(loader: DataLoader, model: nn.Module, criterion, epoch: int, device: torch.device, 
@@ -319,14 +325,14 @@ def test(loader: DataLoader, model: nn.Module, criterion, epoch: int, device: to
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if i % print_freq == 0:
+            if i % print_freq == 0 or i == len(loader) - 1:
                 print('Test: [{0}/{1}]\t'
                       'Time {batch_time.avg:.3f}\t'
                       'Data {data_time.avg:.3f}\t'
                       'Loss {loss.avg:.4f}\t'
                       'Acc@1 {top1.avg:.3f}\t'
                       'Acc@5 {top5.avg:.3f}'.format(
-                    i, len(loader), batch_time=batch_time, data_time=data_time,
+                    i, len(loader) - 1, batch_time=batch_time, data_time=data_time,
                     loss=losses, top1=top1, top5=top5))
 
         if writer:

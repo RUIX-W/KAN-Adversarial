@@ -19,7 +19,7 @@
 from typing import List
 
 import torch.nn as nn
-from utils.regularization import L1
+from regularization import L1
 from .layers import KANLayer, KALNLayer, FastKANLayer, ChebyKANLayer, GRAMLayer
 
 

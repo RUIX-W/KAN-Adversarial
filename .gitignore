@@ -2,3 +2,5 @@ demos/foolbox_mnist.ipynb
 
 __pycache__/*
 **/__pycache__/*
+
+logs/*

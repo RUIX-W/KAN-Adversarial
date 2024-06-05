@@ -33,6 +33,8 @@ def get_parser() -> ArgumentParser:
                         help='Path to the dataset directory')
     parser.add_argument('--batch', type=int, default=128,
                         help='Batch size during attack.')
+    parser.add_argument('--workers', type=int, default=0,
+                        help='Number of worker nodes when loading data.')
     
     #############################################
     # Attack configurations
