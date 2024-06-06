@@ -146,6 +146,8 @@ def save_model(model: nn.Module, model_name: str, normalize: bool, kan: bool,
         info['grid_size'] = model.grid_size
         info['l1_decay'] = model.l1_decay
     
+    info['kan'] = kan
+    
     path = os.path.join(path, f'checkpoint@{epoch}.pth')
     print(f'Saving model at epoch {epoch} to {path} ...')
     torch.save(info, path)
@@ -167,7 +169,7 @@ def model_filepath(base_dir: str, args: Namespace) -> str:
     if args.kan:
         keys.extend(['spline_order', 'grid_size', 'l1_decay'])
     
-    keys.extend(['epochs', 'lr', 'weight-_decay', 'optimizer'])
+    keys.extend(['epochs', 'lr', 'weight_decay', 'optimizer'])
     if args.optimizer == 'SGD':
         keys.append('momentum')
     else:

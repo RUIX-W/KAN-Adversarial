@@ -20,18 +20,18 @@ def get_parser() -> ArgumentParser:
     # Positional arguments
     parser.add_argument('dataset', type=str, choices=DATASETS,
                         help='The dataset used in this experiment')
-    parser.add_argument('arch-path', type=str,
+    parser.add_argument('arch_path', type=str,
                         help='Path to the archive storing trained models.')
     parser.add_argument('attack', type=str, choices=ATTACKERS,
                         help='The attack approach.')
-    parser.add_argument('dist-norm', type=str, choices=NORMS,
+    parser.add_argument('dist_norm', type=str, choices=NORMS,
                         help='Distance norm for attacker.')
     
     #############################################
     # Data configurations
     parser.add_argument('--data-dir', type=str, default='~/DATA/',
                         help='Path to the dataset directory')
-    parser.add_argument('--batch', type=int, default=128,
+    parser.add_argument('--batch', type=int, default=64,
                         help='Batch size during attack.')
     parser.add_argument('--workers', type=int, default=0,
                         help='Number of worker nodes when loading data.')
@@ -44,12 +44,16 @@ def get_parser() -> ArgumentParser:
                         help='Epsilons used to find adversarial samples.')
     parser.add_argument('--bounds', type=float, nargs=2, default=(0, 1),
                         help='Bounds of inputs for attacked models.')
+    parser.add_argument('--use-gpu', action='store_true',
+                        help='Whether to use GPU for attack.')
     
     #############################################
     # Logging configurations
+    parser.add_argument('--log-dir', type=str, default='./logs/',
+                        help='Directory that stores logging.')
     parser.add_argument('--save-freq', type=int, default=20,
                         help='Frequency to save adversarial examples.')
-    parser.add_argument('--test-freq', type=int, default=10,
+    parser.add_argument('--print-freq', type=int, default=10,
                         help='Frequency to print results.')
     
     # PGD arguments (also applied to other attackers)

@@ -42,12 +42,12 @@ def prologue(args: Namespace):
 
     writer = SummaryWriter(args.log_dir)
 
-    ckpt = torch.load(args.model_path)
+    ckpt = torch.load(args.arch_path)
     dataset = get_dataset(args.dataset, 'test', args.data_dir, not ckpt['normalize'])
     loader = DataLoader(dataset, args.batch, shuffle=False, num_workers=args.workers)
 
-    model = load_ckpt(ckpt, args.dataset)
-    attack = get_attack(args.attack, args.norm, args)
+    model = load_ckpt(ckpt, args.dataset).eval()
+    attack = get_attack(args.attack, args.dist_norm, args)
 
     device = torch.device('cuda') if (args.use_gpu) and torch.cuda.is_available() \
         else torch.device('cpu')
@@ -86,45 +86,48 @@ def attack_call(model: nn.Module,
     data_time = AverageMeter()
     if isinstance(epsilons, float):
         epsilons = [epsilons]
-    else:
-        successes = [AverageMeter() for _ in range(len(epsilons))]
-        distances = [AverageMeter() for _ in range(len(epsilons))]
+        
+    successes = [AverageMeter() for _ in range(len(epsilons))]
+    distances = [AverageMeter() for _ in range(len(epsilons))]
     
     end = time.time()
 
-    for idx, (inputs, labels) in loader:
+    for idx, (inputs, labels) in enumerate(loader):
         inputs, labels = inputs.to(device), labels.to(device)
         data_time.update(time.time() - end)
 
         if targets_gen is None:
             # untargeted attack
-            criterion = fb.criteria.Misclassification(labels)
-
             # only consider those inputs that were originally correct
             logits = fmodel(inputs)
             preds = torch.argmax(logits, -1)
             is_correct = (preds == labels)
             inputs, labels = inputs[is_correct], labels[is_correct]
+
+            criterion = fb.criteria.Misclassification(labels)
         else:
             criterion = fb.criteria.TargetedMisclassification(
                 target_classes=targets_gen(labels)
             )
         
         raw, clipped, is_adv = attack(fmodel, inputs, criterion=criterion,
-                                      epsilons=epsilons)        
+                                      epsilons=epsilons)
 
         for i in range(len(epsilons)):
             mask = is_adv[i]
-            successes[i].update(mask.mean().item(), inputs.size(0))
-            distance = (raw[i][mask] - inputs[i][mask]).flatten(1).norm(dist_p, -1).item()
-            distances[i].update(distance, inputs.size(0))
+            if mask.sum() == 0:
+                continue
+            
+            successes[i].update(mask.float().mean().item(), inputs.size(0))
+            distance = (raw[i][mask] - inputs[mask]).flatten(1).norm(dist_p, -1).mean().item()
+            distances[i].update(distance, mask.sum().item())
 
         if idx % save_freq == 0 and writer:
             for i, imgs in enumerate(clipped):
                 writer.add_images(f'clipped@{epsilons[i]}', imgs.detach().cpu())               
         
-        if idx % print_freq == 0 or idx == len(loader - 1):            
-            info = f'Attack {idx}/{len(loader - 1)}\t'
+        if idx % print_freq == 0 or idx == len(loader) - 1:            
+            info = f'Attack {idx}/{len(loader) - 1}\t'
             f'Time {batch_time.avg:.3f}\t'
             f'Data {data_time.avg:.3f}\t'
 
@@ -132,7 +135,7 @@ def attack_call(model: nn.Module,
             _epsilons = epsilons[:print_step_size * 4:print_step_size]
             for i, eps in enumerate(_epsilons):
                 idx = i * print_step_size
-                info += f'Success@{eps} {successes[idx].avg:.3f} ({successes[idx].sum}/{successes[idx].count})\t'
+                info += f'Success@{eps} {successes[idx].avg * 100:.3f}%\t'
             for i, eps in enumerate(_epsilons):
                 info += f'L{dist_p}@{eps} {distances[idx].avg:.3f}\t'
             print(info)

@@ -83,7 +83,7 @@ def get_kan_architecture(model_name: str, dataset: str, normalize: bool,
 
 def load_ckpt(ckpt: dict, dataset: str, device: torch.device = torch.device('cuda')) -> nn.Module:
    if ckpt['kan']:
-      model = get_kan_architecture(ckpt['model_name'], dataset, ckpt['normalize'], 
+      model = get_kan_architecture(ckpt['name'], dataset, ckpt['normalize'], 
                                    ckpt['spline_order'], ckpt['grid_size'], ckpt['l1_decay'],
                                    device)
    else:
